@@ -1,0 +1,14 @@
+# Size-matched control: S2 + as many objects as S3 would add, but chosen >= 1.5 m away.
+task: counter_to_microwave
+penalty_weight: 0.1
+default_relevance: 0.0
+relevance:
+  robot: 1.0
+  coffee_cup: 1.0
+  ref:microwave: 1.0
+nearby:
+  - of: [coffee_cup, ref:microwave]
+    radius: 0.3
+    select: far_size_matched
+    min_distance: 1.5
+    relevance: 1.0

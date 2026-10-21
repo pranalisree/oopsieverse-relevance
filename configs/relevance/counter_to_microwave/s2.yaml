@@ -1,0 +1,8 @@
+# S2 (manipulated): S1 + the microwave.
+task: counter_to_microwave
+penalty_weight: 0.1
+default_relevance: 0.0
+relevance:
+  robot: 1.0
+  coffee_cup: 1.0
+  ref:microwave: 1.0

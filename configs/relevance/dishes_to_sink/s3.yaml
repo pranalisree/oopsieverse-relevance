@@ -1,0 +1,14 @@
+# S3 (nearby): S2 + every object within 30 cm of an S2 object (re-evaluated each reset).
+task: dishes_to_sink
+penalty_weight: 0.1
+default_relevance: 0.0
+relevance:
+  robot: 1.0
+  bowl: 1.0
+  cup: 1.0
+  plate: 1.0
+  ref:sink: 1.0
+nearby:
+  - of: [bowl, cup, plate, ref:sink]
+    radius: 0.3
+    relevance: 1.0

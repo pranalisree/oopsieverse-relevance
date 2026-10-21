@@ -1,0 +1,41 @@
+# Default experiment config. Any file passed with --config is merged on top of this,
+# so it only needs the keys it changes. Keep the env/ppo blocks identical across
+# relevance conditions so runs are comparable.
+
+task: dishes_to_sink
+relevance: s4            # name in configs/relevance/<task>/ or a path to a YAML
+seed: 0
+out_dir: runs            # relative to the oopsieverse repo root
+
+env:
+  horizon: 500                          # steps at 20 Hz = 25 s
+  track: relevant                       # training: only rho > 0 objects (same reward, faster)
+  obs_keys: [robot0_proprio, object-state]
+  action_parts: [right, right_gripper]  # fixed mobile base; null = full 12-D action
+  include_health_obs: false             # append [weighted health, min in-scope health] / 100
+  soft_reset: true                      # keep the built kitchen, re-sample object placements each episode
+                                        # (false = RoboCasa default: rebuild everything, 30-100 s per reset)
+
+ppo:
+  total_timesteps: 2000000
+  n_envs: 8
+  n_steps: 512             # per env per update
+  batch_size: 1024
+  n_epochs: 10
+  learning_rate: 3.0e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.0
+  net_arch: [256, 256]
+  normalize_obs: true
+  normalize_reward: true
+  checkpoint_every: 200000  # env steps
+
+eval:
+  episodes: 30
+  deterministic: true
+
+wandb:
+  enabled: false
+  project: oopsieverse-relevance

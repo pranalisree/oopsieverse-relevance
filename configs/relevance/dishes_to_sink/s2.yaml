@@ -1,0 +1,10 @@
+# S2 (manipulated): S1 + the sink.
+task: dishes_to_sink
+penalty_weight: 0.1
+default_relevance: 0.0
+relevance:
+  robot: 1.0
+  bowl: 1.0
+  cup: 1.0
+  plate: 1.0
+  ref:sink: 1.0

@@ -1,0 +1,12 @@
+# S2 at full relevance + objects within 30 cm at relevance 0.5.
+task: counter_to_microwave
+penalty_weight: 0.1
+default_relevance: 0.0
+relevance:
+  robot: 1.0
+  coffee_cup: 1.0
+  ref:microwave: 1.0
+nearby:
+  - of: [coffee_cup, ref:microwave]
+    radius: 0.3
+    relevance: 0.5

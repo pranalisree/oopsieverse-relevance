@@ -1,0 +1,5 @@
+# S4 (full scene): every tracked object; equivalent to the OopsieVerse reward.
+task: dishes_to_sink
+penalty_weight: 0.1
+default_relevance: 1.0
+relevance:

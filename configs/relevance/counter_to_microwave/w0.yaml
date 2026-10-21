@@ -1,0 +1,5 @@
+# Baseline: task reward only (w = 0).
+task: counter_to_microwave
+penalty_weight: 0.0
+default_relevance: 0.0
+relevance:

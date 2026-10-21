@@ -1,0 +1,20 @@
+# Full study: 2 RoboCasa tasks x 10 relevance conditions x 3 seeds = 60 runs.
+# Merged over configs/experiment.yaml, so env/ppo are identical across conditions.
+#   python -m relevance.sweep --config relevance/configs/sweeps/proposal.yaml --dry-run
+
+out_dir: runs/proposal
+
+sweep:
+  tasks: [counter_to_microwave, dishes_to_sink]
+  relevance:
+    - w0               # task reward only
+    - s1               # binary scopes from the proposal
+    - s2
+    - s3
+    - s4
+    - s3_size_matched  # control: same size as S3, distant objects
+    - s3_nearby_025    # scaled relevance on the nearby tier
+    - s3_nearby_050
+    - s3_nearby_075
+    - graded           # 1.0 / 0.75 / 0.5 / 0.25 by tier
+  seeds: [0, 1, 2]

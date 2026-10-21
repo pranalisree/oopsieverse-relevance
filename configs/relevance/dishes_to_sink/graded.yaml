@@ -1,0 +1,14 @@
+# Graded relevance: target 1.0, manipulated 0.75, nearby 0.5, rest of scene 0.25.
+task: dishes_to_sink
+penalty_weight: 0.1
+default_relevance: 0.25
+relevance:
+  robot: 1.0
+  bowl: 1.0
+  cup: 1.0
+  plate: 1.0
+  ref:sink: 0.75
+nearby:
+  - of: [bowl, cup, plate, ref:sink]
+    radius: 0.3
+    relevance: 0.5

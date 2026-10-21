@@ -1,0 +1,16 @@
+# Size-matched control: S2 + as many objects as S3 would add, but chosen >= 1.5 m away.
+task: dishes_to_sink
+penalty_weight: 0.1
+default_relevance: 0.0
+relevance:
+  robot: 1.0
+  bowl: 1.0
+  cup: 1.0
+  plate: 1.0
+  ref:sink: 1.0
+nearby:
+  - of: [bowl, cup, plate, ref:sink]
+    radius: 0.3
+    select: far_size_matched
+    min_distance: 1.5
+    relevance: 1.0

@@ -1,0 +1,23 @@
+# Tiny end-to-end check (minutes on a laptop): trains and evaluates 2 conditions on 1 task.
+#   python -m relevance.sweep --config relevance/configs/sweeps/smoke.yaml
+
+out_dir: runs/smoke
+
+env:
+  horizon: 50
+
+ppo:
+  total_timesteps: 256
+  n_envs: 2
+  n_steps: 64
+  batch_size: 64
+  n_epochs: 2
+  checkpoint_every: 0
+
+eval:
+  episodes: 2
+
+sweep:
+  tasks: [dishes_to_sink]
+  relevance: [s1, s3_nearby_050]
+  seeds: [0]

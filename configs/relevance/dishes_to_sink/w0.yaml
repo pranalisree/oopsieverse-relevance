@@ -1,0 +1,5 @@
+# Baseline: task reward only (w = 0).
+task: dishes_to_sink
+penalty_weight: 0.0
+default_relevance: 0.0
+relevance:
