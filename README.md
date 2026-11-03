@@ -5,8 +5,11 @@ in `damagesim/`, `oopsiebench/` or `externals/`; everything is done through subc
 
     r(s_t) = R_task(s_t) − w · Σ_e ρ_e · d_e(t),     ρ_e ∈ [0, 1]
 
-`d_e(t)` is the health object `e` lost on this step, and `w` is `penalty_weight`. The binary scopes S1–S4 from
+`d_e(t)` is the health object `e` lost on this step, added up over all of its parts (`damage_mode: sum`, the
+default; `damage_mode: min` uses only the weakest part), and `w` is `penalty_weight`. The binary scopes S1–S4 from
 the proposal are the special case where every ρ is 0 or 1.
+
+**New here?** See [PIPELINE.md](PIPELINE.md) for a step-by-step walkthrough, from picking a task to a results table.
 
 ## Setup (once)
 
@@ -53,6 +56,7 @@ TensorBoard: `tensorboard --logdir runs`. Episode metrics are logged under `epis
 task: dishes_to_sink
 penalty_weight: 0.1
 default_relevance: 0.0          # ρ for every object not matched below
+damage_mode: sum                # sum: add health lost by every part (default); min: weakest part only
 relevance:
   robot: 1.0                    # any robot
   bowl: 1.0                     # exact object name

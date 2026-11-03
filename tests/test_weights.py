@@ -135,6 +135,27 @@ def test_penalty_math():
     assert damage_penalty(prev, now, {}, weight=0.1)[0] == 0.0
 
 
+def test_damage_modes_over_parts():
+    prev = {"cup": {"body": 100.0, "handle": 100.0}, "bowl": {"body": 80.0}}
+    now = {"cup": {"body": 90.0, "handle": 95.0}, "bowl": {"body": 80.0}}
+    rho = {"cup": 1.0, "bowl": 1.0}
+    # sum: both dented parts count; min: only the weakest part's drop (100 -> 90).
+    assert damage_penalty(prev, now, rho, weight=1.0, mode="sum") == (15.0, {"cup": 15.0, "bowl": 0.0})
+    assert damage_penalty(prev, now, rho, weight=1.0, mode="min") == (10.0, {"cup": 10.0, "bowl": 0.0})
+    # A part first seen this step starts from 100.
+    _, damage = damage_penalty(prev, {"cup": {"body": 100.0, "handle": 100.0, "lid": 70.0}}, rho, 1.0)
+    assert damage == {"cup": 30.0}
+    with pytest.raises(ValueError):
+        damage_penalty(prev, now, rho, 1.0, mode="avg")
+
+
+def test_damage_mode_config_default_and_validation():
+    assert RelevanceConfig.from_dict({}).damage_mode == "sum"
+    assert RelevanceConfig.from_dict({"damage_mode": "min"}).damage_mode == "min"
+    with pytest.raises(ValueError):
+        RelevanceConfig.from_dict({"damage_mode": "avg"})
+
+
 def test_episode_metrics_safe_success_uses_every_object():
     totals = {"task_return": 1.0, "damage_penalty": 0.0, "in_scope_damage": 0.0, "out_of_scope_damage": 6.0}
     m = episode_metrics({"cup": 100.0, "laptop": 94.0}, {"cup": 1.0}, True, False, 10, totals)

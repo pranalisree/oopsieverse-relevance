@@ -1,0 +1,18 @@
+# Grid cell: Drawer = 0, Robot = 1
+task: close_drawer
+penalty_weight: 1.0
+default_relevance: 0.0
+damage_mode: sum
+grid:
+  objects:
+  - ref:drawer
+  - robot
+  labels:
+  - Drawer
+  - Robot
+  levels:
+  - 0.0
+  - 1.0
+relevance:
+  ref:drawer: 0.0
+  robot: 1.0

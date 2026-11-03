@@ -115,6 +115,11 @@ class RelevanceEnvMixin:
     def health_snapshot(self) -> Dict[str, float]:
         return {obj.name: float(obj.health) for obj in self.unique_damageable_objects()}
 
+    def part_health_snapshot(self) -> Dict[str, Dict[str, float]]:
+        """Per-part health of every object, ``{name: {part: health}}``."""
+        return {obj.name: dict(obj.link_healths) or {"": float(obj.health)}
+                for obj in self.unique_damageable_objects()}
+
 
 def make_env_class(task: str):
     base = EnvironmentRegistry.get(task).damageable_class
@@ -178,6 +183,10 @@ class RelevanceGymEnv(gym.Env):
         self.env = make_raw_env(task, self.relevance_config, track=track, seed=seed,
                                 verbose_relevance=verbose, soft_reset=soft_reset, **(env_kwargs or {}))
         obs, _ = self.env.reset()  # robots are only built on the first reset
+        missing = [k for k in self.obs_keys if k not in obs and k != "task-state"]
+        if missing:  # e.g. close_drawer has no movable objects, so no "object-state"
+            print(f"[relevance] {task}: observation keys {missing} not provided by this task, skipping them")
+            self.obs_keys = [k for k in self.obs_keys if k not in missing]
         self._init_episode()
 
         low, high = self.env.action_spec
@@ -197,11 +206,30 @@ class RelevanceGymEnv(gym.Env):
     def _init_episode(self):
         self._t = 0
         self._prev_health = self.env.health_snapshot()
+        self._prev_parts = self.env.part_health_snapshot()
         self._ep = {"task_return": 0.0, "damage_penalty": 0.0,
                     "in_scope_damage": 0.0, "out_of_scope_damage": 0.0}
 
+    def _task_state(self, obs) -> np.ndarray:
+        """How open each door/drawer fixture of the task is, and its position relative to the gripper."""
+        feats = []
+        eef = np.asarray(obs["robot0_eef_pos"])
+        for ref_name in getattr(self.env, "fixture_refs", {}):  # values are tuples; env.<ref_name> is the fixture
+            fx = getattr(self.env, ref_name, None)
+            if not hasattr(fx, "get_door_state"):
+                continue
+            try:
+                state = fx.get_door_state(env=self.env)
+            except Exception:
+                continue
+            feats.extend(state.values())
+            body = self.env.sim.model.body_name2id(fx.root_body)
+            feats.extend(self.env.sim.data.body_xpos[body] - eef)
+        return np.asarray(feats, dtype=np.float32)
+
     def _flatten_obs(self, obs) -> np.ndarray:
-        parts = [np.asarray(obs[k], dtype=np.float32).ravel() for k in self.obs_keys]
+        parts = [self._task_state(obs) if k == "task-state" else np.asarray(obs[k], dtype=np.float32).ravel()
+                 for k in self.obs_keys]
         if self.include_health_obs:
             health = self._prev_health
             in_scope = [n for n, r in self.env.relevance.items() if r > 0 and n in health]
@@ -230,9 +258,11 @@ class RelevanceGymEnv(gym.Env):
         self._t += 1
 
         health = self.env.health_snapshot()
+        parts = self.env.part_health_snapshot()
         rho = self.env.relevance
-        penalty, damage = damage_penalty(self._prev_health, health, rho, self.relevance_config.penalty_weight)
-        self._prev_health = health
+        penalty, damage = damage_penalty(self._prev_parts, parts, rho, self.relevance_config.penalty_weight,
+                                         mode=self.relevance_config.damage_mode)
+        self._prev_health, self._prev_parts = health, parts
 
         in_scope = sum(d for n, d in damage.items() if rho.get(n, 0.0) > 0)
         self._ep["task_return"] += float(task_reward)

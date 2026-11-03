@@ -83,6 +83,7 @@ def main(argv=None):
         ent_coef=float(ppo["ent_coef"]),
         policy_kwargs=dict(net_arch=list(ppo["net_arch"]), activation_fn=torch.nn.Tanh),
         tensorboard_log=os.path.join(out, "tb"), seed=int(cfg["seed"]), verbose=1,
+        device=ppo.get("device", "auto"),
     )
     model.learn(total_timesteps=int(ppo["total_timesteps"]), callback=CallbackList(callbacks),
                 tb_log_name="ppo")

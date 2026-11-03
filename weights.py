@@ -60,6 +60,7 @@ class RelevanceConfig:
     task: Optional[str] = None
     penalty_weight: float = 0.1
     default_relevance: float = 0.0
+    damage_mode: str = "sum"   # "sum": add damage over all parts; "min": weakest part only
     relevance: Dict[str, float] = field(default_factory=dict)
     nearby: List[NearbyRule] = field(default_factory=list)
 
@@ -70,6 +71,7 @@ class RelevanceConfig:
             task=raw.get("task"),
             penalty_weight=float(raw.get("penalty_weight", 0.1)),
             default_relevance=float(raw.get("default_relevance", 0.0)),
+            damage_mode=str(raw.get("damage_mode", "sum")),
             relevance={str(k): float(v) for k, v in (raw.get("relevance") or {}).items()},
             nearby=[
                 NearbyRule(of=[str(k) for k in r["of"]], radius=float(r["radius"]),
@@ -78,6 +80,8 @@ class RelevanceConfig:
                 for r in (raw.get("nearby") or [])
             ],
         )
+        if cfg.damage_mode not in DAMAGE_MODES:
+            raise ValueError(f"[{cfg.name}] damage_mode must be one of {DAMAGE_MODES}, got {cfg.damage_mode!r}")
         for rule in cfg.nearby:
             if rule.select not in ("near", "far_size_matched"):
                 raise ValueError(f"[{cfg.name}] nearby.select must be 'near' or 'far_size_matched', got '{rule.select}'")
@@ -246,9 +250,33 @@ def objects_within(env, anchors: List, objects: List, radius: float) -> List:
     return out
 
 
-def damage_penalty(prev_health: Dict[str, float], health: Dict[str, float],
-                   rho: Dict[str, float], weight: float) -> tuple:
-    """Return ``(penalty, per_object_damage)`` for one step: ``w * sum rho_e * max(0, h_prev - h)``."""
-    damage = {n: max(0.0, prev_health.get(n, h) - h) for n, h in health.items()}
+DAMAGE_MODES = ("sum", "min")
+
+
+def object_damage(prev_health: dict, health: dict, mode: str = "sum") -> Dict[str, float]:
+    """Health each object lost this step.
+
+    Values are ``{part: health}`` dicts (``obj.link_healths``) or plain floats (one part).
+    ``sum``: add up the drop of every part, so two dented parts count twice.
+    ``min``: drop of the object's weakest part only (what ``obj.health`` reports).
+    """
+    if mode not in DAMAGE_MODES:
+        raise ValueError(f"damage_mode must be one of {DAMAGE_MODES}, got {mode!r}")
+    damage = {}
+    for n, now in health.items():
+        before = prev_health.get(n, now)
+        now = now if isinstance(now, dict) else {"": now}
+        before = before if isinstance(before, dict) else {"": before}
+        if mode == "sum":
+            damage[n] = sum(max(0.0, before.get(p, 100.0) - h) for p, h in now.items())
+        else:
+            damage[n] = max(0.0, min(before.values(), default=100.0) - min(now.values(), default=100.0))
+    return damage
+
+
+def damage_penalty(prev_health: dict, health: dict, rho: Dict[str, float], weight: float,
+                   mode: str = "sum") -> tuple:
+    """Return ``(penalty, per_object_damage)`` for one step: ``w * sum rho_e * d_e``."""
+    damage = object_damage(prev_health, health, mode)
     penalty = weight * sum(rho.get(n, 0.0) * d for n, d in damage.items())
     return penalty, damage
