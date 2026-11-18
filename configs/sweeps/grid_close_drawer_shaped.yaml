@@ -1,0 +1,39 @@
+# 3x3 Drawer x Robot grid on close_drawer WITH reward shaping (reach-to-handle, success bonus).
+# Corner cells first so the most informative ones finish first. Old unshaped grid: grid_close_drawer.yaml
+#   bash relevance/scripts/run_grid.sh relevance/configs/sweeps/grid_close_drawer_shaped.yaml
+out_dir: runs/grid_close_drawer_shaped
+env:
+  horizon: 300
+  obs_keys:
+  - robot0_proprio
+  - object-state
+  - task-state
+  - handle-state
+  shaping:
+    reach_weight: 50.0
+    success_bonus: 100.0
+    success_bonus_fill: true
+ppo:
+  total_timesteps: 500000
+  n_envs: 2
+  n_steps: 512
+  batch_size: 512
+  checkpoint_every: 100000
+  device: cpu
+eval:
+  episodes: 20
+sweep:
+  tasks:
+  - close_drawer
+  relevance:
+  - grid_100_100
+  - grid_000_000
+  - grid_100_000
+  - grid_000_100
+  - grid_050_050
+  - grid_100_050
+  - grid_050_100
+  - grid_000_050
+  - grid_050_000
+  seeds:
+  - 0

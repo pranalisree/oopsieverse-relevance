@@ -100,3 +100,28 @@ Use `python -m relevance.inspect_scene --task <task>` to find object keys. Optio
 - If (1, 1) has a high **timeout** rate, the penalty made the robot too cautious to finish.
 - 300k steps and 1 seed is a first look, not a final result. Treat differences of less than about 15–20
   percentage points as noise until there are more seeds.
+
+## Shaped grid (`grid_close_drawer_shaped.yaml`)
+
+The first grid (above) learned nothing: every cell timed out, the drawer stayed ~97% open, and the Drawer weight
+had no effect because the robot never touched the drawer. Two reasons:
+
+- **No signal to reach the drawer.** Reward only changes once the drawer moves, and the gripper starts ~1.1 m away.
+- **Succeeding was worth less than stalling.** Success ends the episode and cuts off the 10/step paid while the
+  drawer is shut. A scripted push that stalls near-closed scored ~1400 vs ~430 for actually succeeding.
+
+The shaped grid turns on `env.shaping` (training reward only; evaluation metrics are unchanged):
+
+- `reach_weight: 50`: potential-based pull toward the drawer handle, then away from the drawer once it is closed.
+- `success_bonus: 100` + `success_bonus_fill: true`: on success, also pay this step's task reward for every step
+  left in the horizon, so finishing early is never worse than stalling. (Scripted: success ~2150 vs stall ~1500.)
+- `handle-state` observation (handle position relative to the gripper), horizon 300, 500k steps, 2 envs per cell.
+
+```bash
+PY=$CONDA_PREFIX/bin/python bash relevance/scripts/run_grid.sh relevance/configs/sweeps/grid_close_drawer_shaped.yaml 4
+```
+
+`run_grid.sh` only starts a cell when `n_envs × 2.5 GB + 3 GB` of RAM is free (each env worker uses ~2.4 GB), so it
+can wait behind other runs without the OOM killer taking anything out. Tune with `MEM_PER_PROC_GB` / `MEM_MARGIN_GB`.
+Regenerate with other settings via `python -m relevance.grid ... --reach-weight 50 --success-bonus 100
+--success-bonus-fill --name <sweep name>`.

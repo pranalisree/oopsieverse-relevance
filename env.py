@@ -23,6 +23,21 @@ from relevance.weights import RelevanceConfig, damage_penalty, load_relevance_co
 
 TRACK_MODES = ("all", "relevant", "default")
 
+# Training-only reward terms (``env.shaping`` in the experiment config). All off by default, so the reward
+# is exactly R_task - penalty unless a config turns them on. Evaluation metrics never include them.
+SHAPING_DEFAULTS = {
+    # Potential-based reach shaping for door/drawer tasks: adds reach_weight * (phi(s') - phi(s)), where
+    # phi = -|eef - handle| until the fixture reaches door_target, then +min(|eef - fixture|, retreat_dist)
+    # so the hand is pulled to the handle first and away from the fixture afterwards.
+    "reach_weight": 0.0,
+    "door_target": "closed",      # "closed" (opening <= door_threshold) or "open" (opening >= door_threshold)
+    "door_threshold": 0.05,
+    "retreat_dist": 0.75,         # metres; matches the close_drawer success check
+    # Paid once on success. success_bonus_fill adds this step's task reward x the steps left in the
+    # horizon, so ending the episode early by succeeding is never worth less than stalling near the goal.
+    "success_bonus": 0.0,
+    "success_bonus_fill": False,
+}
 
 class RelevanceEnvMixin:
     """
@@ -171,9 +186,14 @@ class RelevanceGymEnv(gym.Env):
         seed: Optional[int] = None,
         verbose: bool = False,
         env_kwargs: Optional[dict] = None,
+        shaping: Optional[dict] = None,
     ):
         super().__init__()
         self.task = task
+        self.shaping = {**SHAPING_DEFAULTS, **(shaping or {})}
+        unknown = set(self.shaping) - set(SHAPING_DEFAULTS)
+        if unknown:
+            raise ValueError(f"unknown env.shaping keys {sorted(unknown)}; valid: {sorted(SHAPING_DEFAULTS)}")
         self.relevance_config = (relevance if isinstance(relevance, RelevanceConfig)
                                  else load_relevance_config(relevance, task=task))
         self.horizon = int(horizon)
@@ -183,7 +203,7 @@ class RelevanceGymEnv(gym.Env):
         self.env = make_raw_env(task, self.relevance_config, track=track, seed=seed,
                                 verbose_relevance=verbose, soft_reset=soft_reset, **(env_kwargs or {}))
         obs, _ = self.env.reset()  # robots are only built on the first reset
-        missing = [k for k in self.obs_keys if k not in obs and k != "task-state"]
+        missing = [k for k in self.obs_keys if k not in obs and k not in ("task-state", "handle-state")]
         if missing:  # e.g. close_drawer has no movable objects, so no "object-state"
             print(f"[relevance] {task}: observation keys {missing} not provided by this task, skipping them")
             self.obs_keys = [k for k in self.obs_keys if k not in missing]
@@ -209,6 +229,68 @@ class RelevanceGymEnv(gym.Env):
         self._prev_parts = self.env.part_health_snapshot()
         self._ep = {"task_return": 0.0, "damage_penalty": 0.0,
                     "in_scope_damage": 0.0, "out_of_scope_damage": 0.0}
+        if self._shaping_on():
+            self._ep["shaping_return"] = 0.0
+            self._phi = self._potential()
+
+    # ── Shaping ─────────────────────────────────────────────────────────
+
+    def _shaping_on(self) -> bool:
+        s = self.shaping
+        return bool(s["reach_weight"] or s["success_bonus"] or s["success_bonus_fill"])
+
+    def _door_fixtures(self):
+        """(fixture, handle body id or None) for every door/drawer fixture the task registered."""
+        out = []
+        model = self.env.sim.model
+        for ref_name in getattr(self.env, "fixture_refs", {}):
+            fx = getattr(self.env, ref_name, None)
+            if not hasattr(fx, "get_door_state"):
+                continue
+            handle = None
+            for cand in (f"{fx.name}_door_handle_main", f"{fx.name}_left_door_handle_main"):
+                try:
+                    handle = model.body_name2id(cand)
+                    break
+                except Exception:
+                    continue
+            out.append((fx, handle))
+        return out
+
+    def _eef_pos(self) -> np.ndarray:
+        robot = self.env.robots[0]
+        return self.env.sim.data.site_xpos[robot.eef_site_id["right"]].copy()
+
+    def _potential(self) -> float:
+        """phi(s) for reach shaping (0 when off or the task has no door/drawer with a handle)."""
+        s = self.shaping
+        if not s["reach_weight"]:
+            return 0.0
+        fixtures = [(fx, h) for fx, h in self._door_fixtures() if h is not None]
+        if not fixtures:
+            return 0.0
+        fx, handle = fixtures[0]
+        data = self.env.sim.data
+        eef = self._eef_pos()
+        try:
+            opening = float(np.mean(list(fx.get_door_state(env=self.env).values())))
+        except Exception:
+            return self._phi if hasattr(self, "_phi") else 0.0
+        reached = (opening <= s["door_threshold"] if s["door_target"] == "closed"
+                   else opening >= s["door_threshold"])
+        if reached:
+            root = data.body_xpos[self.env.sim.model.body_name2id(fx.root_body)]
+            return float(min(np.linalg.norm(eef - root), s["retreat_dist"]))
+        return -float(np.linalg.norm(eef - data.body_xpos[handle]))
+
+    def _handle_state(self, obs) -> np.ndarray:
+        """Handle position relative to the gripper, for every door/drawer fixture of the task."""
+        eef = np.asarray(obs["robot0_eef_pos"])
+        feats = []
+        for _, handle in self._door_fixtures():
+            if handle is not None:
+                feats.extend(self.env.sim.data.body_xpos[handle] - eef)
+        return np.asarray(feats, dtype=np.float32)
 
     def _task_state(self, obs) -> np.ndarray:
         """How open each door/drawer fixture of the task is, and its position relative to the gripper."""
@@ -228,7 +310,8 @@ class RelevanceGymEnv(gym.Env):
         return np.asarray(feats, dtype=np.float32)
 
     def _flatten_obs(self, obs) -> np.ndarray:
-        parts = [self._task_state(obs) if k == "task-state" else np.asarray(obs[k], dtype=np.float32).ravel()
+        special = {"task-state": self._task_state, "handle-state": self._handle_state}
+        parts = [special[k](obs) if k in special else np.asarray(obs[k], dtype=np.float32).ravel()
                  for k in self.obs_keys]
         if self.include_health_obs:
             health = self._prev_health
@@ -274,10 +357,24 @@ class RelevanceGymEnv(gym.Env):
         terminated = success
         truncated = (not success) and self._t >= self.horizon
 
+        shaping = 0.0
+        if self._shaping_on():
+            s = self.shaping
+            phi = self._potential()
+            shaping += s["reach_weight"] * (phi - self._phi)
+            self._phi = phi
+            if success:
+                shaping += s["success_bonus"]
+                if s["success_bonus_fill"]:
+                    shaping += max(float(task_reward), 0.0) * max(self.horizon - self._t, 0)
+            self._ep["shaping_return"] += shaping
+
         info = {"task_reward": float(task_reward), "damage_penalty": penalty, "is_success": success}
+        if shaping:
+            info["shaping_reward"] = shaping
         if terminated or truncated:
             info["episode_metrics"] = episode_metrics(health, rho, success, truncated, self._t, self._ep)
-        return self._flatten_obs(obs), float(task_reward) - penalty, terminated, truncated, info
+        return self._flatten_obs(obs), float(task_reward) - penalty + shaping, terminated, truncated, info
 
     def close(self):
         try:

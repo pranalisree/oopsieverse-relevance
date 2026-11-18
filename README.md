@@ -98,6 +98,10 @@ names and seeds. Keep `env` and `ppo` identical across conditions.
 - **Actions:** arm + gripper only (7-D). The mobile base and torso are held at zero. Set
   `env.action_parts: null` for the full 12-D action.
 - **Episodes:** `terminated` = task success, `truncated` = `env.horizon` reached (this counts as a timeout).
+- **Reward shaping (`env.shaping`, off by default):** `reach_weight` (potential-based pull to a door/drawer handle,
+  then away once the fixture reaches `door_target`), `success_bonus`, and `success_bonus_fill` (on success, pay the
+  current task reward for every remaining step so ending early is never worse than stalling). Training reward
+  only. Add `handle-state` to `obs_keys` for the handle position. See GRID.md.
 
 ## Metrics (evaluate.py, sweep summary)
 
