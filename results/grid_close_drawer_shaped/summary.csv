@@ -1,0 +1,6 @@
+task,relevance,penalty_weight,n_seeds,episodes,safe_success_mean,safe_success_std,success_mean,success_std,timeout_mean,timeout_std,zero_damage_mean,zero_damage_std,min_health_mean,min_health_std,mean_health_mean,mean_health_std,weighted_health_mean,weighted_health_std,num_damaged_objects_mean,num_damaged_objects_std,in_scope_damage_mean,in_scope_damage_std,out_of_scope_damage_mean,out_of_scope_damage_std,length_mean,length_std
+close_drawer,grid_000_000,1.0,1,20,0.0,0.0,0.0,0.0,1.0,0.0,0.2,0.0,34.2998,0.0,98.8261,0.0,100.0,0.0,0.85,0.0,0.0,0.0,117.1411,0.0,300.0,0.0
+close_drawer,grid_000_100,1.0,1,20,0.0,0.0,0.0,0.0,1.0,0.0,0.7,0.0,72.152,0.0,99.5027,0.0,72.152,0.0,0.3,0.0,47.848,0.0,0.0,0.0,300.0,0.0
+close_drawer,grid_050_050,1.0,1,20,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,7.6862,0.0,98.3515,0.0,53.8431,0.0,1.0,0.0,183.1649,0.0,0.0,0.0,300.0,0.0
+close_drawer,grid_100_000,1.0,1,20,0.0,0.0,0.0,0.0,1.0,0.0,0.2,0.0,34.2998,0.0,98.8261,0.0,99.9611,0.0,0.85,0.0,0.0389,0.0,117.1022,0.0,300.0,0.0
+close_drawer,grid_100_100,1.0,1,20,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,98.2123,0.0,49.9453,0.0,1.15,0.0,297.7545,0.0,0.0,0.0,300.0,0.0
