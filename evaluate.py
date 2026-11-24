@@ -66,7 +66,7 @@ def main(argv=None):
     from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
     # Fixed eval seeds, disjoint from training seeds; track="all" for full-scene scoring.
-    venv = DummyVecEnv([env_factory(cfg, relevance, rank=0, track="all", seed_offset=500)])
+    venv = DummyVecEnv([env_factory(cfg, relevance, rank=0, track="all", seed_offset=int(os.environ.get("EVAL_SEED_OFFSET", 500)))])
     model = None
     if args.policy == "trained":
         if not args.run:

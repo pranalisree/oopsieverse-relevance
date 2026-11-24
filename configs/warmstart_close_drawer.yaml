@@ -1,0 +1,56 @@
+task: close_drawer
+relevance: grid_000_000
+seed: 0
+out_dir: runs/grid_close_drawer_shaped
+env:
+  horizon: 300
+  track: relevant
+  obs_keys:
+  - robot0_proprio
+  - object-state
+  - task-state
+  - handle-state
+  action_parts:
+  - right
+  - right_gripper
+  include_health_obs: false
+  soft_reset: true
+  shaping:
+    reach_weight: 50.0
+    success_bonus: 100.0
+    success_bonus_fill: true
+ppo:
+  total_timesteps: 500000
+  n_envs: 2
+  n_steps: 512
+  batch_size: 512
+  n_epochs: 10
+  learning_rate: 0.0001
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.0
+  net_arch:
+  - 256
+  - 256
+  normalize_obs: true
+  normalize_reward: true
+  checkpoint_every: 25000
+  device: cpu
+eval:
+  episodes: 20
+  deterministic: true
+wandb:
+  enabled: false
+  project: oopsieverse-relevance
+sweep:
+  tasks:
+  - close_drawer
+  relevance:
+  - grid_100_100
+  - grid_000_000
+  - grid_100_000
+  - grid_000_100
+  - grid_050_050
+  seeds:
+  - 0

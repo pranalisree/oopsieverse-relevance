@@ -26,6 +26,8 @@ def parse_args(argv=None):
     p.add_argument("--total-timesteps", type=int, default=None)
     p.add_argument("--n-envs", type=int, default=None)
     p.add_argument("--out-dir", default=None)
+    p.add_argument("--init-from", default=None,
+                   help="run dir to warm-start from (loads its model.zip + vecnormalize.pkl)")
     return p.parse_args(argv)
 
 
@@ -41,6 +43,8 @@ def main(argv=None):
     )
     relevance = load_relevance_config(cfg["relevance"], task=cfg["task"])
     out = run_dir(cfg, relevance.name)
+    if args.init_from:
+        cfg["init_from"] = os.path.abspath(args.init_from)
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "config.yaml"), "w") as f:
         yaml.safe_dump(cfg, f, sort_keys=False)
@@ -60,8 +64,14 @@ def main(argv=None):
     factories = [env_factory(cfg, relevance, rank) for rank in range(n_envs)]
     venv = SubprocVecEnv(factories, start_method="spawn") if n_envs > 1 else DummyVecEnv(factories)
     venv = VecMonitor(venv)
-    venv = VecNormalize(venv, norm_obs=ppo["normalize_obs"], norm_reward=ppo["normalize_reward"],
-                        gamma=ppo["gamma"])
+    if args.init_from:
+        # Reuse the base run's normalisation stats so the loaded policy sees the same inputs; keep updating them.
+        venv = VecNormalize.load(os.path.join(args.init_from, "vecnormalize.pkl"), venv)
+        venv.training = True
+        venv.norm_reward = bool(ppo["normalize_reward"])
+    else:
+        venv = VecNormalize(venv, norm_obs=ppo["normalize_obs"], norm_reward=ppo["normalize_reward"],
+                            gamma=ppo["gamma"])
 
     callbacks = [EpisodeMetricsCallback()]
     if ppo.get("checkpoint_every"):
@@ -85,6 +95,9 @@ def main(argv=None):
         tensorboard_log=os.path.join(out, "tb"), seed=int(cfg["seed"]), verbose=1,
         device=ppo.get("device", "auto"),
     )
+    if args.init_from:
+        model.set_parameters(os.path.join(args.init_from, "model.zip"), exact_match=True, device=model.device)
+        print(f"[train] warm-started from {args.init_from}")
     model.learn(total_timesteps=int(ppo["total_timesteps"]), callback=CallbackList(callbacks),
                 tb_log_name="ppo")
     model.save(os.path.join(out, "model.zip"))
